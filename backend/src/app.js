@@ -2,6 +2,7 @@ import express from "express"
 import instagramRoutes from "./routes/instagram.routes.js"
 import session from "express-session";
 
+
 const app = express()
 app.set("trust proxy", 1);
 
