@@ -1,0 +1,313 @@
+# Project Handover Prompt — Instagram Connect + Publishing API
+
+Act as my Node.js backend mentor and help me continue my existing project from its current state. Read the full context below before suggesting changes. Do not make me restart the project or repeat completed steps.
+
+## 1. Project Objective
+
+I am building an Instagram Connect + Publishing REST API as a 2-day assignment for Pravinex Solutions.
+
+**Required stack:**
+- Node.js + Express
+- Instagram API with Instagram Login (official Meta API)
+- Axios
+- SQLite using `better-sqlite3`
+- dotenv
+- Postman
+- GitHub
+
+The API must connect my own Instagram Professional account, publish an image with a caption, and store publishing results in SQLite.
+
+## 2. My Development Environment
+
+- OS: Windows
+- Editor: VS Code
+- Node.js with ES Modules (`"type": "module"`)
+- Backend project folder: `Instagram-connect/backend`
+- Server port: `3000`
+- Server started using nodemon
+- ngrok provides HTTPS access to the local server
+- Current ngrok URL: `https://renter-gusty-qualified.ngrok-free.dev`
+
+**Important:** The ngrok URL may change. Always tell me to check the current URL before using it.
+
+## 3. Existing Project Setup
+
+### `server.js`
+
+The server starts Express and imports the database configuration. The terminal has displayed:
+
+```text
+SQLite database connected
+Server is running on port 3000
+```
+
+### `src/app.js`
+
+- Express is configured.
+- `express-session` is installed and configured.
+- `SESSION_SECRET` is set in `.env`.
+- `app.set("trust proxy", 1)` is configured for the ngrok HTTPS proxy.
+- Session middleware is registered before Instagram routes.
+- Instagram routes are mounted at `/api/instagram`.
+- A health endpoint exists at `GET /health`.
+
+### `src/routes/instagram.routes.js`
+
+The file contains these routes:
+
+1. `GET /connect`
+   - Generates a cryptographically random OAuth `state` using `node:crypto`.
+   - Saves the state in `req.session`.
+   - Redirects to Instagram authorization.
+
+2. `GET /callback`
+   - Handles Instagram's OAuth callback.
+   - Validates `code`, `state`, and authorization errors.
+   - Exchanges the authorization code server-side using Axios.
+   - Stores the access token and Instagram user ID in the server session.
+   - A later correction fetches the authenticated profile from the `/me` endpoint and stores that ID and username in the session.
+
+3. `GET /me`
+   - Uses the session access token.
+   - Calls the official Instagram Graph API.
+   - Returns `connected`, `igUserId`, and `username`.
+   - Does not return the access token.
+
+4. `POST /posts`
+   - Reads `imageUrl` and `caption` from the JSON request body.
+   - Checks that the user has an Instagram token and ID in their session.
+   - Validates the HTTPS image URL and caption.
+   - Inserts a pending post into SQLite.
+   - Creates an Instagram media container.
+   - Publishes the media using Meta's Content Publishing API.
+   - Updates the SQLite record to `published` or `failed`.
+   - Returns the published media ID after successful publishing.
+
+5. `GET /posts`
+   - Intended to return the latest 10 records from SQLite.
+   - This route may not have been added and tested yet. Verify before assuming it exists.
+
+### Database configuration
+
+File: `src/config/database.js`
+
+The database uses `better-sqlite3`:
+
+```js
+import Database from "better-sqlite3";
+
+const db = new Database("social-poster.db");
+
+db.pragma("journal_mode = WAL");
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS instagram_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ig_user_id TEXT UNIQUE NOT NULL,
+    username TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    image_url TEXT NOT NULL,
+    caption TEXT NOT NULL,
+    container_id TEXT,
+    media_id TEXT,
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending', 'published', 'failed')),
+    error TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+console.log("SQLite database connected");
+
+export default db;
+```
+
+The database file is `social-poster.db` in the backend working directory. Confirm the actual path before changing database commands.
+
+## 4. Environment Variables
+
+The `.env` file contains:
+
+- `PORT=3000`
+- `META_APP_ID`
+- `META_APP_SECRET`
+- `META_REDIRECT_URI`
+- `META_API_VERSION=v26.0`
+- `SESSION_SECRET`
+
+Never ask me to share secret values. Never print access tokens, cookies, or app secrets in responses, logs, or GitHub commits.
+
+The configured callback URL has been:
+
+`https://renter-gusty-qualified.ngrok-free.dev/api/instagram/callback`
+
+Ensure it matches the currently active ngrok URL and the Meta Developer Dashboard OAuth Redirect URI.
+
+## 5. Meta and Instagram Setup
+
+- A Meta Developer app was created named `SocialPoster API-IG`.
+- Instagram Login was configured.
+- A permitted Instagram tester was added and the invitation accepted.
+- Instagram account username: `adarshh.tech`.
+- The Instagram account is a Professional account.
+- Instagram authorization was successful.
+- The official Instagram Login flow is being used, not unofficial browser automation.
+- Required permissions include `instagram_business_basic` and `instagram_business_content_publish`, subject to the app's current Meta configuration.
+
+## 6. Confirmed Working Tests
+
+### Health endpoint
+
+Request:
+
+`GET /health`
+
+Response:
+
+```json
+{
+  "success": true,
+  "message": "SocialPoster API is running"
+}
+```
+
+### OAuth connect and callback
+
+- `GET /api/instagram/connect` redirects to Instagram authorization.
+- Instagram permission was granted.
+- The callback successfully exchanged the authorization code.
+- The response displayed `Instagram connected! Access token stored on server.`
+
+### Instagram profile endpoint
+
+`GET /api/instagram/me`
+
+Successfully returned:
+
+```json
+{
+  "connected": true,
+  "igUserId": "17841477695540155",
+  "username": "adarshh.tech"
+}
+```
+
+Treat this as previously observed output; recheck the current session if necessary.
+
+### Real Instagram publishing
+
+A real test post was successfully published through the API.
+
+Response:
+
+```json
+{
+  "status": "published",
+  "mediaId": "18134206705678446"
+}
+```
+
+The post caption was `My API test post`.
+
+### SQLite verification
+
+I ran a Node command to query recent posts. The database returned:
+
+```text
+id: 6
+caption: 'My API test post'
+media_id: '18134206705678446'
+status: 'published'
+```
+
+Older failed attempts were also saved with `status: 'failed'` and `media_id: null`.
+
+Therefore, **actual Instagram publishing and SQLite persistence are confirmed working at least once**.
+
+## 7. Previous Errors and Lessons
+
+### `ReferenceError: session is not defined`
+
+Fixed by importing:
+
+```js
+import session from "express-session";
+```
+
+### `Invalid OAuth state`
+
+Resolved by configuring session cookies and starting OAuth from the ngrok HTTPS URL. Connect and callback must use the same browser session.
+
+### `Connect Instagram first` in Postman
+
+The browser's session is separate from Postman's session. The browser can successfully call `/me`, while Postman may not have the same session cookie. Do not assume Postman authentication works just because browser authentication works.
+
+### `Unsupported post request. Object with ID ...`
+
+The publishing route initially used a different Instagram ID (`28766151453013196`) from the `/me` response (`17841477695540155`). The callback was updated to fetch the authenticated profile using `/me` and store that ID in the session. The real publish subsequently succeeded, so do not restart debugging this old error unless it reappears.
+
+### `Only photo or video can be accepted as media type`
+
+The earlier image URL was unsuitable. A valid, directly accessible public HTTPS JPEG image URL resolved this and a real post was published.
+
+## 8. Remaining Assignment Work
+
+Continue from the existing project. Work through these tasks in order:
+
+1. **Verify `GET /api/instagram/posts`**
+   - Ensure it exists.
+   - Return the latest 10 records from SQLite, including local ID, image URL, caption, container ID, media ID, status, error, and timestamp.
+   - Use a try/catch and safe error responses.
+
+2. **Verify all endpoints in Postman**
+   - `GET /health`
+   - `GET /api/instagram/connect`
+   - `GET /api/instagram/callback` via actual OAuth redirect, not a fake manual callback
+   - `GET /api/instagram/me`
+   - `POST /api/instagram/posts`
+   - `GET /api/instagram/posts`
+
+3. **Security and validation**
+   - Ensure no token is returned to the browser or Postman.
+   - Validate public HTTPS image URLs and caption length.
+   - Sanitize provider errors before saving them in SQLite.
+   - Test missing authentication, invalid image URLs, missing caption, oversized caption, and provider errors.
+   - Review duplicate publish protection.
+   - Ensure the OAuth state is one-time use and securely validated.
+
+4. **API version and official documentation**
+   - Verify `META_API_VERSION=v26.0` against current official Meta documentation before treating it as confirmed.
+   - Use `META_API_VERSION` consistently in every Graph API URL. Avoid hardcoded versions such as `v23.0`.
+   - Use the official Instagram Login host and endpoints, not Facebook Login endpoints.
+
+5. **Database quality**
+   - Check whether `instagram_accounts` is needed. The assignment requires post history, not necessarily this extra table.
+   - Do not delete tables or records without a reason.
+   - Confirm the latest successful post appears in the history endpoint.
+
+6. **GitHub and README**
+   - Create/update `.env.example` without real secrets.
+   - Verify `.gitignore` excludes `.env`, database files, `node_modules`, and sensitive logs as appropriate.
+   - Write setup instructions, OAuth configuration, permissions, routes, sample requests, test results, and known Meta limitations.
+   - Include a screenshot or proof of the actual successful post, without secrets or cookies.
+   - Document three learnings and troubleshooting notes.
+
+## 9. How You Should Help Me
+
+I am a beginner in backend development. Explain in simple Hinglish.
+
+- Give me one small step at a time.
+- Be concise and direct; avoid dumping all code at once.
+- Tell me the exact file path and where to paste each code block.
+- Do not ask me to redo things already confirmed working.
+- Ask for the relevant current code if needed before changing it.
+- After each step, wait for my confirmation or test output.
+- Never claim a test passed unless the actual output proves it.
+- Do not suggest sharing session cookies, access tokens, Meta app secrets, or passwords in chat.
+- Prioritize finishing the existing assignment over adding unrelated features.
+
+Start by briefly acknowledging that the OAuth connection, profile endpoint, actual Instagram publishing, and SQLite storage have already worked. Then identify the single most important pending task and guide me through it one step at a time.
