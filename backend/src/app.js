@@ -3,6 +3,7 @@ import instagramRoutes from "./routes/instagram.routes.js"
 import session from "express-session";
 
 const app = express()
+app.set("trust proxy", 1);
 
 app.use(express.json());
 app.use(
@@ -12,7 +13,7 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: false, // Local development only
+      secure: true, 
       sameSite: "lax",
       maxAge: 10 * 60 * 1000,
     },
