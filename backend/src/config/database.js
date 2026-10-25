@@ -9,7 +9,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ig_user_id TEXT UNIQUE NOT NULL,
     username TEXT NOT NULL,
-    access_token TEXT NOT NULL,
+    access_token TEXT,
     token_expires_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -29,6 +29,20 @@ db.exec(`
   );
 `);
 
-console.log("SQLite database connected");
+// Safe migration helper to add missing columns to existing tables
+const addColumnIfNotExists = (tableName, columnName, columnDefinition) => {
+  const columns = db.pragma(`table_info(${tableName})`);
+  const exists = columns.some((col) => col.name === columnName);
+  if (!exists) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+  }
+};
+
+addColumnIfNotExists("instagram_accounts", "access_token", "TEXT");
+addColumnIfNotExists("instagram_accounts", "token_expires_at", "DATETIME");
+addColumnIfNotExists("instagram_accounts", "updated_at", "DATETIME DEFAULT CURRENT_TIMESTAMP");
+addColumnIfNotExists("posts", "ig_user_id", "TEXT");
+
+console.log("SQLite database connected and migrations applied");
 
 export default db;

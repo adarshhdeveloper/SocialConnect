@@ -351,7 +351,7 @@ export const createInstagramPost = async (req, res) => {
 export const getInstagramPosts = (req, res) => {
     try {
         const posts = db.prepare(`
-            SELECT id, image_url, caption, container_id, media_id, status, error, created_at
+            SELECT id, ig_user_id, image_url, caption, container_id, media_id, status, error, created_at
             FROM posts
             ORDER BY created_at DESC
             LIMIT 10
