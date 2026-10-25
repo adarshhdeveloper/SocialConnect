@@ -399,3 +399,131 @@ export const getInstagramPosts = (req, res) => {
         });
     }
 }
+
+/**
+ * @desc Get single post by local database ID
+ */
+export const getInstagramPostById = (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const post = db.prepare(`
+            SELECT id, ig_user_id, image_url, caption, container_id, media_id, permalink, status, error, created_at
+            FROM posts
+            WHERE id = ?
+        `).get(id);
+
+        if (!post) {
+            return res.status(404).json({
+                success: false,
+                error: `Post with ID ${id} not found`,
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            post,
+        });
+    } catch (err) {
+        console.error("Failed to fetch post by ID:", err.message);
+        return res.status(500).json({
+            success: false,
+            error: "Could not retrieve post from database",
+        });
+    }
+}
+
+/**
+ * @desc Delete a post record from local database history
+ */
+export const deleteInstagramPostById = (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const result = db.prepare(`
+            DELETE FROM posts
+            WHERE id = ?
+        `).run(id);
+
+        if (result.changes === 0) {
+            return res.status(404).json({
+                success: false,
+                error: `Post with ID ${id} not found`,
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Post record with ID ${id} deleted successfully from database`,
+        });
+    } catch (err) {
+        console.error("Failed to delete post record:", err.message);
+        return res.status(500).json({
+            success: false,
+            error: "Could not delete post from database",
+        });
+    }
+}
+
+/**
+ * @desc Get all connected Instagram accounts from SQLite (without exposing tokens)
+ */
+export const getInstagramAccounts = (req, res) => {
+    try {
+        const accounts = db.prepare(`
+            SELECT id, ig_user_id, username, token_expires_at, created_at, updated_at
+            FROM instagram_accounts
+            ORDER BY updated_at DESC
+        `).all();
+
+        return res.status(200).json({
+            success: true,
+            count: accounts.length,
+            accounts,
+        });
+    } catch (err) {
+        console.error("Failed to fetch accounts from DB:", err.message);
+        return res.status(500).json({
+            success: false,
+            error: "Could not retrieve connected accounts from database",
+        });
+    }
+}
+
+/**
+ * @desc Disconnect Instagram account (remove from DB and clear active session)
+ */
+export const disconnectInstagramAccount = (req, res) => {
+    const { igUserId } = req.params;
+
+    try {
+        const result = db.prepare(`
+            DELETE FROM instagram_accounts
+            WHERE ig_user_id = ?
+        `).run(igUserId);
+
+        if (req.session.igUserId === igUserId) {
+            delete req.session.igAccessToken;
+            delete req.session.igUserId;
+            delete req.session.igUsername;
+        }
+
+        if (result.changes === 0) {
+            return res.status(404).json({
+                success: false,
+                error: `Account with Instagram User ID ${igUserId} not found in database`,
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Instagram account ${igUserId} disconnected and deleted from database`,
+        });
+    } catch (err) {
+        console.error("Failed to disconnect account:", err.message);
+        return res.status(500).json({
+            success: false,
+            error: "Could not disconnect account from database",
+        });
+    }
+}

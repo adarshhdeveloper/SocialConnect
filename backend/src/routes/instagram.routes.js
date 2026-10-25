@@ -1,5 +1,15 @@
 import {Router} from "express";
-import {getInstagramAccessToken, handleInstagramCallback , getInstagramProfile,createInstagramPost, getInstagramPosts} from "../controllers/instaConnect.controller.js";
+import {
+    getInstagramAccessToken,
+    handleInstagramCallback,
+    getInstagramProfile,
+    createInstagramPost,
+    getInstagramPosts,
+    getInstagramPostById,
+    deleteInstagramPostById,
+    getInstagramAccounts,
+    disconnectInstagramAccount,
+} from "../controllers/instaConnect.controller.js";
 
 const router = Router();
 
@@ -15,7 +25,7 @@ router.get("/connect", getInstagramAccessToken);
  * @desc Handles the callback from Instagram after user authorization
  * @access Public 
  */
-router.get("/callback",handleInstagramCallback);
+router.get("/callback", handleInstagramCallback);
 
 /**
  * @route GET /api/instagram/me
@@ -23,6 +33,20 @@ router.get("/callback",handleInstagramCallback);
  * @access Public (but requires prior connection)
  */
 router.get("/me", getInstagramProfile);
+
+/**
+ * @route GET /api/instagram/accounts
+ * @desc Lists all connected accounts stored in the local SQLite database
+ * @access Public
+ */
+router.get("/accounts", getInstagramAccounts);
+
+/**
+ * @route DELETE /api/instagram/accounts/:igUserId
+ * @desc Disconnects and removes an Instagram account from local database
+ * @access Public
+ */
+router.delete("/accounts/:igUserId", disconnectInstagramAccount);
 
 /**
  * @route POST /api/instagram/posts
@@ -38,6 +62,18 @@ router.post("/posts", createInstagramPost);
  */
 router.get("/posts", getInstagramPosts);
 
+/**
+ * @route GET /api/instagram/posts/:id
+ * @desc Returns a single post by local database ID
+ * @access Public
+ */
+router.get("/posts/:id", getInstagramPostById);
 
+/**
+ * @route DELETE /api/instagram/posts/:id
+ * @desc Deletes a post record from local SQLite history
+ * @access Public
+ */
+router.delete("/posts/:id", deleteInstagramPostById);
 
-export default router;
+export default router;
