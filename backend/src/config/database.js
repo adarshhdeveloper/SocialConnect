@@ -9,11 +9,15 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ig_user_id TEXT UNIQUE NOT NULL,
     username TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    access_token TEXT NOT NULL,
+    token_expires_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS posts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ig_user_id TEXT,
     image_url TEXT NOT NULL,
     caption TEXT NOT NULL,
     container_id TEXT,
