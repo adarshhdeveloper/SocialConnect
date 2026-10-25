@@ -1,10 +1,15 @@
 import express from "express"
+import cors from "cors";
 import instagramRoutes from "./routes/instagram.routes.js"
 import session from "express-session";
 
 const app = express()
 app.set("trust proxy", 1);
 
+app.use(cors({
+  origin: true, // Allow frontend dev server
+  credentials: true, // Allow cookies/session
+}));
 app.use(express.json());
 app.use(
   session({
