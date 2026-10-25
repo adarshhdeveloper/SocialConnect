@@ -1,3 +1,4 @@
+
 import Database from "better-sqlite3";
 
 const db = new Database("social-connect.db");
@@ -28,20 +29,32 @@ db.exec(`
     error TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS oauth_states (
+    state TEXT PRIMARY KEY,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
-// Safe migration helper to add missing columns to existing tables
 const addColumnIfNotExists = (tableName, columnName, columnDefinition) => {
   const columns = db.pragma(`table_info(${tableName})`);
   const exists = columns.some((col) => col.name === columnName);
+
   if (!exists) {
-    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+    db.exec(
+      `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`
+    );
   }
 };
 
 addColumnIfNotExists("instagram_accounts", "access_token", "TEXT");
 addColumnIfNotExists("instagram_accounts", "token_expires_at", "DATETIME");
-addColumnIfNotExists("instagram_accounts", "updated_at", "DATETIME DEFAULT CURRENT_TIMESTAMP");
+addColumnIfNotExists(
+  "instagram_accounts",
+  "updated_at",
+  "DATETIME DEFAULT CURRENT_TIMESTAMP"
+);
+
 addColumnIfNotExists("posts", "ig_user_id", "TEXT");
 addColumnIfNotExists("posts", "permalink", "TEXT");
 
