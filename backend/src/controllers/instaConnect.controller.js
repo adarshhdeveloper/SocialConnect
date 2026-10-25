@@ -244,6 +244,20 @@ export const createInstagramPost = async (req, res) => {
         });
     }
 
+    // Duplicate check: check if the exact same image & caption was published in the last 2 minutes
+    const recentDuplicate = db.prepare(`
+        SELECT id FROM posts 
+        WHERE image_url = ? AND caption = ? AND status = 'published'
+        AND datetime(created_at, '+2 minutes') > datetime('now')
+    `).get(imageUrl, caption);
+
+    if (recentDuplicate) {
+        return res.status(409).json({
+            status: "failed",
+            error: "Duplicate post detected. This image and caption was already published recently.",
+        });
+    }
+
     let postId;
 
     try {
@@ -312,15 +326,30 @@ export const createInstagramPost = async (req, res) => {
             throw new Error("Meta did not return a published media ID");
         }
 
+        // Fetch permalink for the published media
+        let permalink = null;
+        try {
+            const mediaDetailRes = await axios.get(`${baseUrl}/${mediaId}`, {
+                params: {
+                    fields: "permalink",
+                    access_token: token,
+                },
+            });
+            permalink = mediaDetailRes.data?.permalink || null;
+        } catch (permalinkErr) {
+            console.warn("Could not fetch permalink:", permalinkErr.message);
+        }
+
         db.prepare(`
       UPDATE posts
-      SET media_id = ?, status = 'published', error = NULL
+      SET media_id = ?, permalink = ?, status = 'published', error = NULL
       WHERE id = ?
-    `).run(mediaId, postId);
+    `).run(mediaId, permalink, postId);
 
         return res.status(201).json({
             status: "published",
             mediaId,
+            permalink,
         });
     } catch (err) {
         const safeError =
@@ -351,7 +380,7 @@ export const createInstagramPost = async (req, res) => {
 export const getInstagramPosts = (req, res) => {
     try {
         const posts = db.prepare(`
-            SELECT id, ig_user_id, image_url, caption, container_id, media_id, status, error, created_at
+            SELECT id, ig_user_id, image_url, caption, container_id, media_id, permalink, status, error, created_at
             FROM posts
             ORDER BY created_at DESC
             LIMIT 10

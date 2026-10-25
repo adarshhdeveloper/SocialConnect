@@ -22,6 +22,7 @@ db.exec(`
     caption TEXT NOT NULL,
     container_id TEXT,
     media_id TEXT,
+    permalink TEXT,
     status TEXT NOT NULL DEFAULT 'pending'
       CHECK (status IN ('pending', 'published', 'failed')),
     error TEXT,
@@ -42,6 +43,7 @@ addColumnIfNotExists("instagram_accounts", "access_token", "TEXT");
 addColumnIfNotExists("instagram_accounts", "token_expires_at", "DATETIME");
 addColumnIfNotExists("instagram_accounts", "updated_at", "DATETIME DEFAULT CURRENT_TIMESTAMP");
 addColumnIfNotExists("posts", "ig_user_id", "TEXT");
+addColumnIfNotExists("posts", "permalink", "TEXT");
 
 console.log("SQLite database connected and migrations applied");
 
