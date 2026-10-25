@@ -24,7 +24,7 @@ app.use(
 app.get("/health",(req,res)=>{
     res.status(200).json({
         success:true,
-        message:"SocialPoster API is running"
+        message:"SocialConnect API is running"
     })
 })
 
