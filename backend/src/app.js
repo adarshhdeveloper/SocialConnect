@@ -2,7 +2,6 @@ import express from "express"
 import instagramRoutes from "./routes/instagram.routes.js"
 import session from "express-session";
 
-
 const app = express()
 app.set("trust proxy", 1);
 
@@ -14,7 +13,7 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true, 
+      secure: process.env.NODE_ENV === "production", // HTTPS only in production
       sameSite: "lax",
       maxAge: 10 * 60 * 1000,
     },
@@ -28,6 +27,7 @@ app.get("/health",(req,res)=>{
         message:"SocialPoster API is running"
     })
 })
+
 
 //instagram routes
 app.use("/api/instagram",instagramRoutes)
