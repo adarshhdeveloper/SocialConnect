@@ -12,7 +12,7 @@ export const getInstagramAccessToken = (req, res) => {
         client_id: process.env.META_APP_ID,
         redirect_uri: process.env.META_REDIRECT_URI,
         response_type: "code",
-        scope: "instagram_business_basic,instagram_business_content_publish",
+        scope: "instagram_business_basic,instagram_business_content_publish,instagram_business_manage_messages",
         state,
     });
 
@@ -114,11 +114,6 @@ export const handleInstagramCallback =  async (req, res) => {
                 token_expires_at = excluded.token_expires_at,
                 updated_at = CURRENT_TIMESTAMP
         `).run(igUserId, igUsername, accessToken, expiresAt);
-
-        // Keep session for fast lookup
-        req.session.igAccessToken = accessToken;
-        req.session.igUserId = igUserId;
-        req.session.igUsername = igUsername;
 
         res.send("Instagram connected successfully! Token and account saved permanently in database.");
     } catch (err) {
