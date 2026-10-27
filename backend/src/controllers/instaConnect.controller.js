@@ -521,4 +521,5 @@ export const disconnectInstagramAccount = (req, res) => {
             error: "Could not disconnect account from database",
         });
     }
-}
+}
+    

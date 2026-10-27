@@ -9,6 +9,7 @@ const api = axios.create({
   withCredentials: true, // Important for session cookies
   headers: {
     "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
   },
 });
 
