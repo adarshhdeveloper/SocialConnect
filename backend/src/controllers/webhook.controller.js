@@ -1,16 +1,17 @@
-
 import axios from "axios";
 import db from "../config/database.js";
 
 // NEW: Import the AI service that you already tested successfully.
-import { generateAIReply } from "../services/aiReply.service.js";
+import {
+    generateAIReply
+} from "../services/aiReply.service.js";
 
 // 1. Meta webhook verification
 // Existing working verification logic: unchanged.
 export function verifyInstagramWebhook(req, res) {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
-    const challenge = req.query["hub.challenge"];
+    const challenge = req.query["hub.challenge"]; 
 
     if (
         mode === "subscribe" &&
@@ -60,12 +61,12 @@ export async function handleInstagramWebhook(req, res) {
                 // Get the connected Instagram account and token.
                 // Existing SQLite lookup: unchanged.
                 const account = db.prepare(`
-                    SELECT ig_user_id, access_token
-                    FROM instagram_accounts
-                    WHERE access_token IS NOT NULL
-                    ORDER BY id DESC
-                    LIMIT 1
-                `).get();
+    SELECT ig_user_id, access_token
+    FROM instagram_accounts
+    WHERE ig_user_id = ?
+    AND access_token IS NOT NULL
+    LIMIT 1
+`).get(String(entry.id));
 
                 if (!account) {
                     console.error(
@@ -79,14 +80,14 @@ export async function handleInstagramWebhook(req, res) {
                 // Existing Instagram Send API request.
                 // CHANGE: send aiReply instead of the hardcoded greeting.
                 const response = await axios.post(
-                    `https://graph.instagram.com/${apiVersion}/${account.ig_user_id}/messages`,
-                    {
-                        recipient: { id: senderId },
+                    `https://graph.instagram.com/${apiVersion}/${account.ig_user_id}/messages`, {
+                        recipient: {
+                            id: senderId
+                        },
                         message: {
                             text: aiReply
                         }
-                    },
-                    {
+                    }, {
                         headers: {
                             Authorization: `Bearer ${account.access_token}`,
                             "Content-Type": "application/json"
