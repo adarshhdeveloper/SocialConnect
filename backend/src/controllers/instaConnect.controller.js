@@ -22,12 +22,9 @@ export const getInstagramAccessToken = (req, res) => {
     res.redirect(instagramLoginUrl);
 }
 
-export const handleInstagramCallback =  async (req, res) => {
-    const {
-        code,
-        state,
-        error
-    } = req.query;
+
+export const handleInstagramCallback = async (req, res) => {
+    const { code, state, error } = req.query;
 
     if (error) {
         return res.status(400).send("Instagram authorization denied");
@@ -54,19 +51,18 @@ export const handleInstagramCallback =  async (req, res) => {
 
         const response = await axios.post(
             "https://api.instagram.com/oauth/access_token",
-            params, {
+            params,
+            {
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded",
                 },
             }
         );
 
-        // 1. Initial Short-Lived Access Token (1 hr validity)
         const shortLivedToken = response.data.access_token;
 
-        // 2. Exchange for Long-Lived Access Token (60 days validity)
         let accessToken = shortLivedToken;
-        let expiresInSeconds = 60 * 24 * 60 * 60; // default 60 days fallback
+        let expiresInSeconds = 60 * 24 * 60 * 60;
 
         try {
             const longLivedRes = await axios.get(
@@ -79,20 +75,22 @@ export const handleInstagramCallback =  async (req, res) => {
                     },
                 }
             );
+
             if (longLivedRes.data?.access_token) {
                 accessToken = longLivedRes.data.access_token;
-                expiresInSeconds = longLivedRes.data.expires_in || expiresInSeconds;
+                expiresInSeconds =
+                    longLivedRes.data.expires_in || expiresInSeconds;
             }
         } catch (exchangeErr) {
             console.warn(
-                "Long-lived token exchange warning (using short-lived as fallback):",
+                "Long-lived token exchange warning:",
                 exchangeErr.response?.data || exchangeErr.message
             );
         }
 
-        // 3. Fetch user profile
         const profileResponse = await axios.get(
-            `https://graph.instagram.com/${process.env.META_API_VERSION}/me`, {
+            `https://graph.instagram.com/${process.env.META_API_VERSION}/me`,
+            {
                 params: {
                     fields: "user_id,username",
                     access_token: accessToken,
@@ -102,11 +100,15 @@ export const handleInstagramCallback =  async (req, res) => {
 
         const igUserId = profileResponse.data.user_id;
         const igUsername = profileResponse.data.username;
-        const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
 
-        // 4. Save/Update account & token in SQLite Database
+        const expiresAt = new Date(
+            Date.now() + expiresInSeconds * 1000
+        ).toISOString();
+
+        // Save Instagram account
         db.prepare(`
-            INSERT INTO instagram_accounts (ig_user_id, username, access_token, token_expires_at, updated_at)
+            INSERT INTO instagram_accounts
+            (ig_user_id, username, access_token, token_expires_at, updated_at)
             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(ig_user_id) DO UPDATE SET
                 username = excluded.username,
@@ -115,21 +117,52 @@ export const handleInstagramCallback =  async (req, res) => {
                 updated_at = CURRENT_TIMESTAMP
         `).run(igUserId, igUsername, accessToken, expiresAt);
 
-        res.send("Instagram connected successfully! Token and account saved permanently in database.");
-    } catch (err) {
-        // Log full Instagram error response for debugging
-        console.error("=== Instagram Token Exchange Failed ===");
-        console.error("Status:", err.response?.status);
-        console.error("Full Error:", JSON.stringify(err.response?.data, null, 2));
-        console.error("Message:", err.message);
-        console.error("redirect_uri used:", process.env.META_REDIRECT_URI);
-        console.error("=======================================");
+        // Subscribe this Instagram account to messages webhook
+        try {
+            const webhookResponse = await axios.post(
+                `https://graph.instagram.com/${process.env.META_API_VERSION}/${igUserId}/subscribed_apps`,
+                new URLSearchParams({
+                    subscribed_fields: "messages",
+                }),
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                }
+            );
 
-        res.status(502).send(
-            "Instagram token exchange failed. Check backend logs."
+            console.log(
+                `Webhook subscription successful for ${igUsername}:`,
+                webhookResponse.data
+            );
+
+        } catch (webhookError) {
+            console.error(
+                `Webhook subscription failed for ${igUsername}:`,
+                webhookError.response?.data || webhookError.message
+            );
+        }
+
+        return res.send(
+            `Instagram ${igUsername} connected successfully.`
+        );
+
+    } catch (err) {
+        console.error("=== Instagram Connection Failed ===");
+        console.error("Status:", err.response?.status);
+        console.error(
+            "Full Error:",
+            JSON.stringify(err.response?.data, null, 2)
+        );
+        console.error("Message:", err.message);
+        console.error("===================================");
+
+        return res.status(502).send(
+            "Instagram connection failed. Check backend logs."
         );
     }
-}
+};
 
 
 export const getInstagramProfile = async (req, res) => {

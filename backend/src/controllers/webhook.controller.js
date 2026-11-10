@@ -1,17 +1,16 @@
+
 import axios from "axios";
 import db from "../config/database.js";
 
-// NEW: Import the AI service that you already tested successfully.
 import {
     generateAIReply
 } from "../services/aiReply.service.js";
 
 // 1. Meta webhook verification
-// Existing working verification logic: unchanged.
 export function verifyInstagramWebhook(req, res) {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
-    const challenge = req.query["hub.challenge"]; 
+    const challenge = req.query["hub.challenge"];
 
     if (
         mode === "subscribe" &&
@@ -23,82 +22,112 @@ export function verifyInstagramWebhook(req, res) {
     return res.sendStatus(403);
 }
 
-// 2. Receive Instagram DM and send an AI-generated reply
+// 2. Receive Instagram DM and send AI-generated reply
 export async function handleInstagramWebhook(req, res) {
-    // Existing behavior: acknowledge Meta immediately.
+
+    // Acknowledge Meta immediately
     res.sendStatus(200);
 
     try {
         const entries = req.body.entry ?? [];
 
+        console.log("========== INSTAGRAM WEBHOOK ==========");
+        console.log("Total Entries:", entries.length);
+
         for (const entry of entries) {
+
+            const igUserId = String(entry.id);
+
+            console.log("Webhook Instagram User ID:", igUserId);
+
+            // Find the connected Instagram account
+            const account = db.prepare(`
+                SELECT ig_user_id, username, access_token
+                FROM instagram_accounts
+                WHERE ig_user_id = ?
+                AND access_token IS NOT NULL
+                LIMIT 1
+            `).get(igUserId);
+
+            if (!account) {
+                console.error(
+                    "No connected Instagram account found:",
+                    igUserId
+                );
+                continue;
+            }
+
+            console.log("Matched Instagram Account:", account.username);
+
             for (const event of entry.messaging ?? []) {
+
                 const message = event.message;
                 const senderId = event.sender?.id;
                 const text = message?.text?.trim();
 
-                // Existing behavior: ignore empty messages and our own replies.
+                // Ignore empty messages and our own replies
                 if (!text || !senderId || message.is_echo) {
                     continue;
                 }
 
                 console.log("Incoming Instagram DM:", text);
+                console.log("Sender ID:", senderId);
 
-                // NEW AI INTEGRATION:
-                // Previously, the code only replied to Hi/Hello/Hey.
-                // Now every incoming text message is passed to the AI service.
+                // Generate AI reply
                 let aiReply;
 
                 try {
                     aiReply = await generateAIReply(text);
+
                     console.log("AI reply generated successfully.");
+
                 } catch (aiError) {
-                    // If AI fails, don't send a fabricated business answer.
-                    console.error("AI reply generation failed:", aiError.message);
-                    continue;
-                }
-
-                // Get the connected Instagram account and token.
-                // Existing SQLite lookup: unchanged.
-                const account = db.prepare(`
-    SELECT ig_user_id, access_token
-    FROM instagram_accounts
-    WHERE ig_user_id = ?
-    AND access_token IS NOT NULL
-    LIMIT 1
-`).get(String(entry.id));
-
-                if (!account) {
                     console.error(
-                        "No connected Instagram account/token found."
+                        "AI reply generation failed:",
+                        aiError.message
                     );
                     continue;
                 }
 
-                const apiVersion = process.env.META_API_VERSION;
+                // Send AI reply through Instagram API
+                try {
+                    const apiVersion = process.env.META_API_VERSION;
 
-                // Existing Instagram Send API request.
-                // CHANGE: send aiReply instead of the hardcoded greeting.
-                const response = await axios.post(
-                    `https://graph.instagram.com/${apiVersion}/${account.ig_user_id}/messages`, {
-                        recipient: {
-                            id: senderId
+                    const response = await axios.post(
+                        `https://graph.instagram.com/${apiVersion}/${account.ig_user_id}/messages`,
+                        {
+                            recipient: {
+                                id: senderId
+                            },
+                            message: {
+                                text: aiReply
+                            }
                         },
-                        message: {
-                            text: aiReply
+                        {
+                            headers: {
+                                Authorization: `Bearer ${account.access_token}`,
+                                "Content-Type": "application/json"
+                            },
+                            timeout: 15000
                         }
-                    }, {
-                        headers: {
-                            Authorization: `Bearer ${account.access_token}`,
-                            "Content-Type": "application/json"
-                        },
-                        timeout: 15000
-                    }
-                );
+                    );
 
-                console.log("AI auto-reply sent:", response.data);
+                    console.log(
+                        `AI auto-reply sent successfully to ${account.username}:`,
+                        response.data
+                    );
+
+                } catch (sendError) {
+                    console.error(
+                        "Instagram reply sending failed:",
+                        sendError.response?.data ?? sendError.message
+                    );
+                }
             }
         }
+
+        console.log("========== WEBHOOK PROCESSING COMPLETED ==========");
+
     } catch (error) {
         console.error(
             "Instagram webhook error:",
