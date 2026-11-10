@@ -131,61 +131,57 @@ export const handleInstagramCallback =  async (req, res) => {
     }
 }
 
-export const getInstagramProfile = async (req, res) => {
-    // 1. Check session first, if missing check database
-    let accessToken = req.session.igAccessToken;
-    let igUserId = req.session.igUserId;
 
-    if (!accessToken) {
+export const getInstagramProfile = async (req, res) => {
+    try {
         const account = db.prepare(`
-            SELECT ig_user_id, username, access_token 
-            FROM instagram_accounts 
-            ORDER BY updated_at DESC LIMIT 1
+            SELECT ig_user_id, username, access_token
+            FROM instagram_accounts
+            ORDER BY updated_at DESC
+            LIMIT 1
         `).get();
 
-        if (account) {
-            accessToken = account.access_token;
-            igUserId = account.ig_user_id;
-            req.session.igAccessToken = accessToken;
-            req.session.igUserId = igUserId;
-            req.session.igUsername = account.username;
+        if (!account) {
+            delete req.session.igAccessToken;
+            delete req.session.igUserId;
+            delete req.session.igUsername;
+
+            return res.status(401).json({
+                connected: false,
+                message: "Connect Instagram first"
+            });
         }
-    }
 
-    if (!accessToken) {
-        return res.status(401).json({
-            connected: false,
-            message: "Connect Instagram first",
-        });
-    }
-
-    try {
         const response = await axios.get(
-            `https://graph.instagram.com/${process.env.META_API_VERSION}/me`, {
+            `https://graph.instagram.com/${process.env.META_API_VERSION}/me`,
+            {
                 params: {
                     fields: "user_id,username",
-                    access_token: accessToken,
-                },
+                    access_token: account.access_token
+                }
             }
         );
 
-        res.json({
+        req.session.igAccessToken = account.access_token;
+        req.session.igUserId = account.ig_user_id;
+        req.session.igUsername = account.username;
+
+        return res.json({
             connected: true,
             igUserId: response.data.user_id,
-            username: response.data.username,
+            username: response.data.username
         });
-    } catch (err) {
-        console.error(
-            "Instagram profile request failed:",
-            err.response?.data || err.message
-        );
 
-        res.status(502).json({
+    } catch (err) {
+        console.error("Instagram profile error:", err.response?.data || err.message);
+
+        return res.status(502).json({
             connected: false,
-            message: "Could not fetch Instagram profile",
+            message: "Could not fetch Instagram profile"
         });
     }
-}
+};
+
 
 export const createInstagramPost = async (req, res) => {
     const {
